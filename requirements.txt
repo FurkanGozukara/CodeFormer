@@ -12,4 +12,4 @@ tb-nightly
 tqdm
 yapf
 lpips
-gradio==3.26.0
+gradio

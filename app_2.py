@@ -13,7 +13,8 @@ import gradio as gr
 from itertools import chain
 
 from torchvision.transforms.functional import normalize
-
+import os
+import platform
 from basicsr.utils import imwrite, img2tensor, tensor2img
 from basicsr.utils.download_util import load_file_from_url
 from facelib.utils.face_restoration_helper import FaceRestoreHelper
@@ -24,7 +25,14 @@ from basicsr.utils.realesrgan_utils import RealESRGANer
 from basicsr.utils.registry import ARCH_REGISTRY
 
 
-os.system("pip freeze")
+def open_folder():
+    open_folder_path = os.path.abspath("outputs")
+    if platform.system() == "Windows":
+        os.startfile(open_folder_path)
+    elif platform.system() == "Linux":
+        os.system(f'xdg-open "{open_folder_path}"')
+
+#os.system("pip freeze")
 
 pretrain_model_url = {
     'codeformer': 'https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth',
@@ -100,7 +108,7 @@ checkpoint = torch.load(ckpt_path)["params_ema"]
 codeformer_net.load_state_dict(checkpoint)
 codeformer_net.eval()
 
-os.makedirs('output', exist_ok=True)
+os.makedirs('outputs', exist_ok=True)
 
 def inference(image, background_enhance, face_upsample, upscale, codeformer_fidelity):
     """Run a single prediction on the model"""
@@ -205,9 +213,8 @@ def inference(image, background_enhance, face_upsample, upscale, codeformer_fide
                     upsample_img=bg_img, draw_box=draw_box
                 )
 
-        # save restored img
-        save_path = f'output/out.png'
-        imwrite(restored_img, str(save_path))
+
+        save_image(restored_img)
 
         restored_img = cv2.cvtColor(restored_img, cv2.COLOR_BGR2RGB)
         return restored_img
@@ -216,91 +223,75 @@ def inference(image, background_enhance, face_upsample, upscale, codeformer_fide
         return None, None
 
 
-title = "CodeFormer: Robust Face Restoration and Enhancement Network"
+def save_image(restored_img):
+    # Set the base filename and extension
+    base_filename = "img_"
+    extension = ".png"
+    
+    # Set the output directory
+    output_dir = "outputs"
+    
+    # Create the output directory if it doesn't exist
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Find the last image file in the output directory
+    image_files = [f for f in os.listdir(output_dir) if f.startswith(base_filename) and f.endswith(extension)]
+    
+    if image_files:
+        # Extract the numbers from the image filenames
+        numbers = [int(f[len(base_filename):-len(extension)]) for f in image_files]
+        
+        # Find the maximum number
+        max_number = max(numbers)
+        
+        # Increment the number by 1 for the new filename
+        new_number = max_number + 1
+    else:
+        # If no image files found, start with number 1
+        new_number = 1
+    
+    # Create the new filename with padded zeros
+    new_filename = f"{base_filename}{new_number:04d}{extension}"
+    
+    # Create the full save path
+    save_path = os.path.join(output_dir, new_filename)
+    
+    # Save the restored image
+    imwrite(restored_img, save_path)
+    
+    print(f"Image saved as {save_path}")
 
-description = r"""<center><img src='https://user-images.githubusercontent.com/14334509/189166076-94bb2cac-4f4e-40fb-a69f-66709e3d98f5.png' alt='CodeFormer logo'></center>
-<br>
-<b>Official Gradio demo</b> for <a href='https://github.com/sczhou/CodeFormer' target='_blank'><b>Towards Robust Blind Face Restoration with Codebook Lookup Transformer (NeurIPS 2022)</b></a><br>
-🔥 CodeFormer is a robust face restoration algorithm for old photos or AI-generated faces.<br>
-🤗 Try CodeFormer for improved stable-diffusion generation!<br>
-"""
+title = "CodeFormer: Robust Face Restoration and Enhancement Network - V1 - APP 2"
 
-article = r"""
-If CodeFormer is helpful, please help to ⭐ the <a href='https://github.com/sczhou/CodeFormer' target='_blank'>Github Repo</a>. Thanks! 
-[![GitHub Stars](https://img.shields.io/github/stars/sczhou/CodeFormer?style=social)](https://github.com/sczhou/CodeFormer)
-
----
-
-📝 **Citation**
-
-If our work is useful for your research, please consider citing:
-```bibtex
-@inproceedings{zhou2022codeformer,
-    author = {Zhou, Shangchen and Chan, Kelvin C.K. and Li, Chongyi and Loy, Chen Change},
-    title = {Towards Robust Blind Face Restoration with Codebook Lookup TransFormer},
-    booktitle = {NeurIPS},
-    year = {2022}
-}
-```
-
-📋 **License**
-
-This project is licensed under <a rel="license" href="https://github.com/sczhou/CodeFormer/blob/master/LICENSE">S-Lab License 1.0</a>. 
-Redistribution and use for non-commercial purposes should follow this license.
-
-📧 **Contact**
-
-If you have any questions, please feel free to reach me out at <b>shangchenzhou@gmail.com</b>.
-
-🤗 **Find Me:**
-<style type="text/css">
-td {
-    padding-right: 0px !important;
-}
-</style>
-
-<table>
-<tr>
-    <td><a href="https://github.com/sczhou"><img style="margin:-0.8em 0 2em 0" src="https://img.shields.io/github/followers/sczhou?style=social" alt="Github Follow"></a></td>
-    <td><a href="https://twitter.com/ShangchenZhou"><img style="margin:-0.8em 0 2em 0" src="https://img.shields.io/twitter/follow/ShangchenZhou?label=%40ShangchenZhou&style=social" alt="Twitter Follow"></a></td>
-</tr>
-</table>
-
-<center><img src='https://api.infinitescript.com/badgen/count?name=sczhou/CodeFormer&ltext=Visitors&color=6dc9aa' alt='visitors'></center>
+description = r"""Modified from sczhou/CodeFormer - Latest version on https://www.patreon.com/posts/104691847
 """
 
 with gr.Blocks() as demo:
     gr.Markdown(title)
     gr.Markdown(description)
-    with gr.Box():
+    with gr.Row():
         with gr.Column():
-            input_img = gr.Image(type="filepath", label="Input")
-            background_enhance = gr.Checkbox(value=True, label="Background_Enhance")
-            face_enhance = gr.Checkbox(value=True, label="Face_Upsample")
-            upscale_factor = gr.Number(value=2, label="Rescaling_Factor (up to 4)")
-            codeformer_fidelity = gr.Slider(0, 1, value=0.5, step=0.01, label='Codeformer_Fidelity (0 for better quality, 1 for better identity)')
-            submit = gr.Button('Enhance Image')
+            input_img = gr.Image(type="filepath", label="Input", height=512)
+            background_enhance = gr.Checkbox(value=True, label="Background Enhance")
+            face_enhance = gr.Checkbox(value=True, label="Face Upsample")
+            upscale_factor = gr.Number(value=2, label="Rescaling Factor (up to 4)")
+            codeformer_fidelity = gr.Slider(0, 1, value=0.5, step=0.01, label='Codeformer Fidelity (0 for better quality, 1 for better identity)')
+            with gr.Row():
+                submit_btn = gr.Button('Enhance Image')
+                clear_btn = gr.Button('Clear')
         with gr.Column():
-            output_img = gr.Image(type="numpy", label="Output").style(height='auto')
-            
+            output_img = gr.Image(type="filepath", label="Output", format="png")
+            btn_open_outputs = gr.Button("Open Outputs Folder")
+
+    def clear_inputs():
+        return None, True, True, 2, 0.5
+
     inps = [input_img, background_enhance, face_enhance, upscale_factor, codeformer_fidelity]
-    submit.click(fn=inference, inputs=inps, outputs=[output_img])
-            
-    ex = gr.Examples([
-        ['01.png', True, True, 2, 0.7],
-        ['02.jpg', True, True, 2, 0.7],
-        ['03.jpg', True, True, 2, 0.7],
-        ['04.jpg', True, True, 2, 0.1],
-        ['05.jpg', True, True, 2, 0.1]
-      ],
-        fn=inference,
-        inputs=inps,
-        outputs=[output_img],
-        cache_examples=True)
-    
-    gr.Markdown(article)
-    
-    
-DEBUG = os.getenv('DEBUG') == '1'
-demo.queue(api_open=False, concurrency_count=2, max_size=10)
+    submit_btn.click(fn=inference, inputs=inps, outputs=[output_img])
+    clear_btn.click(fn=clear_inputs, outputs=inps)
+    btn_open_outputs.click(fn=open_folder)
+
+
+
 demo.launch(inbrowser=True)

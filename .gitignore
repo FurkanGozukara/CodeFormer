@@ -1,2 +1,5 @@
 venv
 CodeFormer
+.vs
+output
+outputs
