@@ -50,23 +50,6 @@ if not os.path.exists('CodeFormer/weights/facelib/parsing_parsenet.pth'):
 if not os.path.exists('CodeFormer/weights/realesrgan/RealESRGAN_x2plus.pth'):
     load_file_from_url(url=pretrain_model_url['realesrgan'], model_dir='CodeFormer/weights/realesrgan', progress=True, file_name=None)
 
-# download images
-torch.hub.download_url_to_file(
-    'https://replicate.com/api/models/sczhou/codeformer/files/fa3fe3d1-76b0-4ca8-ac0d-0a925cb0ff54/06.png',
-    '01.png')
-torch.hub.download_url_to_file(
-    'https://replicate.com/api/models/sczhou/codeformer/files/a1daba8e-af14-4b00-86a4-69cec9619b53/04.jpg',
-    '02.jpg')
-torch.hub.download_url_to_file(
-    'https://replicate.com/api/models/sczhou/codeformer/files/542d64f9-1712-4de7-85f7-3863009a7c3d/03.jpg',
-    '03.jpg')
-torch.hub.download_url_to_file(
-    'https://replicate.com/api/models/sczhou/codeformer/files/a11098b0-a18a-4c02-a19a-9a7045d68426/010.jpg',
-    '04.jpg')
-torch.hub.download_url_to_file(
-    'https://replicate.com/api/models/sczhou/codeformer/files/7cf19c2c-e0cf-4712-9af8-cf5bdbb8d0ee/012.jpg',
-    '05.jpg')
-
 def imread(img_path):
     img = cv2.imread(img_path)
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

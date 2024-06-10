@@ -2,6 +2,8 @@
 This file is used for deploying hugging face demo:
 https://huggingface.co/spaces/sczhou/CodeFormer
 """
+import os
+from pathlib import Path
 
 from platform import platform
 import sys
@@ -32,6 +34,11 @@ def open_folder():
         os.system(f'xdg-open "{open_folder_path}"')
 
 #os.system("pip freeze")
+
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--share", type=str, default=False, help="Set to True to share the app publicly.")
+args = parser.parse_args()
 
 pretrain_model_url = {
     'codeformer': 'https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/codeformer.pth',
@@ -93,7 +100,7 @@ codeformer_net.eval()
 
 os.makedirs('outputs', exist_ok=True)
 
-def inference(image, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity):
+def inference(image, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity, dont_save=False):
     """Run a single prediction on the model"""
     print('inference start')
     try: # global try
@@ -202,8 +209,8 @@ def inference(image, face_align, background_enhance, face_upsample, upscale, cod
         else:
             restored_img = restored_face
 
-
-        save_image(restored_img)
+        if not dont_save:
+            save_image(restored_img)
 
         restored_img = cv2.cvtColor(restored_img, cv2.COLOR_BGR2RGB)
         return restored_img
@@ -251,7 +258,57 @@ def save_image(restored_img):
     
     print(f"Image saved as {save_path}")
 
-title = "CodeFormer: Robust Face Restoration and Enhancement Network - V1 - APP 1"
+import time
+
+def batch_inference(batch_input_folder, batch_output_folder, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity, progress=gr.Progress()):
+    if not os.path.exists(batch_input_folder):
+        print(f"Batch input folder does not exist: {batch_input_folder}")
+        return
+
+    if not batch_output_folder:
+        batch_output_folder = "batch_outputs"
+    
+    if not os.path.exists(batch_output_folder):
+        os.makedirs(batch_output_folder)
+
+    image_extensions = [".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"]
+    image_files = [file for file in os.listdir(batch_input_folder) if Path(file).suffix.lower() in image_extensions]
+    total_images = len(image_files)
+
+    start_time = time.time()
+
+    for i, file in enumerate(image_files, start=1):
+        image_path = os.path.join(batch_input_folder, file)
+        try:
+            restored_img = inference(image_path, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity, True)
+            
+            if restored_img is not None:
+                save_path = os.path.join(batch_output_folder, f"{Path(file).stem}.png")
+                j = 0
+                while os.path.exists(save_path):
+                    j += 1
+                    save_path = os.path.join(batch_output_folder, f"{Path(file).stem}_{j:04d}.png")
+                restored_img = cv2.cvtColor(restored_img, cv2.COLOR_BGR2RGB)
+                imwrite(restored_img, save_path)
+                print(f"Processed: {image_path}")
+            else:
+                print(f"Failed to process: {image_path}")
+        except Exception as e:
+            print(f"Error processing {image_path}: {e}")
+        
+        elapsed_time = time.time() - start_time
+        processed_images = i
+        remaining_images = total_images - processed_images
+        processing_speed = processed_images / elapsed_time
+        estimated_time_remaining = remaining_images / processing_speed if processing_speed > 0 else 0
+        progress_percent = (processed_images / total_images) * 100
+
+        progress(progress_percent / 100, desc=f"Processed: {processed_images}/{total_images} | Speed: {processing_speed:.2f} img/s | "
+                                               f"ETA: {estimated_time_remaining:.2f}s")
+
+    print("Batch processing completed.")
+
+title = "CodeFormer: Robust Face Restoration and Enhancement Network - V2"
 
 description = r"""Modified from sczhou/CodeFormer - Latest version on https://www.patreon.com/posts/104691847
 """
@@ -283,11 +340,16 @@ with gr.Blocks() as demo:
         with gr.Column():
             image_output = gr.Image(type="numpy", label="Output", format="png")
             btn_open_outputs = gr.Button("Open Outputs Folder")
+            batch_input_folder = gr.Textbox(label="Batch Processing Input Folder")
+            batch_output_folder = gr.Textbox(label="Batch Processing Output Folder (Optional)")
+            status_label = gr.Label()
+            batch_process_button = gr.Button("Start Batch Processing")
 
     submit_button.click(inference, inputs=[image_input, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity], outputs=image_output)
     clear_button.click(clear, outputs=[image_input, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity])
     btn_open_outputs.click(fn=open_folder)
 
+    # Update the batch_process_button click event to pass the progress bar
+    batch_process_button.click(batch_inference, inputs=[batch_input_folder, batch_output_folder, face_align, background_enhance, face_upsample, upscale, codeformer_fidelity],outputs=[status_label],  show_progress=True, queue=True)
 
-
-demo.launch(inbrowser=True)
+demo.launch(inbrowser=True,share=args.share)
